@@ -448,7 +448,23 @@
   render();
   searchInput.focus();
   initTime();
-  initParticles();
+  initTheme();
+
+  // ========== 主题切换 ==========
+
+  function initTheme() {
+    var saved = localStorage.getItem('iconDash_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+
+    var btn = document.getElementById('themeToggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var current = document.documentElement.getAttribute('data-theme');
+      var next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('iconDash_theme', next);
+    });
+  }
 
   // ========== 时间显示 ==========
 
@@ -470,18 +486,6 @@
     setInterval(update, 10000);
   }
 
-  // ========== 背景粒子 ==========
-
-  function initParticles() {
-    var container = document.getElementById('bgParticles');
-    if (!container) return;
-    var colors = ['#6c5ce7', '#00cec9', '#fd79a8', '#fdcb6e', '#74b9ff'];
-    for (var i = 0; i < 3; i++) {
-      var orb = document.createElement('div');
-      orb.className = 'orb';
-      container.appendChild(orb);
-    }
-  }
-  initTime();
+    initTime();
   initParticles();
 })();
