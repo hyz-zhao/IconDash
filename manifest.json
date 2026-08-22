@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "IconDash",
+  "version": "1.0.0",
+  "description": "新标签页图标仪表盘 - 快速访问你的收藏网站",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "permissions": ["storage", "bookmarks"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

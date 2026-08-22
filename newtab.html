@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新标签页</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <div class="bg-particles" id="bgParticles"></div>
+
+  <div class="container">
+    <!-- 时间区域 -->
+    <div class="time-area">
+      <div class="time" id="timeDisplay">00:00</div>
+      <div class="date" id="dateDisplay">8月22日 周五</div>
+    </div>
+
+    <!-- 搜索区域 -->
+    <div class="search-area">
+      <div class="search-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="搜索或输入网址..."
+          autocomplete="off"
+        />
+      </div>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <button class="btn-import" id="btnImport">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        从收藏夹导入
+      </button>
+    </div>
+
+    <!-- 图标网格 -->
+    <div class="grid" id="iconGrid"></div>
+  </div>
+
+  <!-- 添加/编辑弹窗 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2 class="modal-title" id="modalTitle">添加链接</h2>
+      <div class="modal-field">
+        <label for="linkName">名称</label>
+        <input type="text" id="linkName" placeholder="网站名称" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label for="linkUrl">网址</label>
+        <input type="text" id="linkUrl" placeholder="https://example.com" autocomplete="off" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="btnCancel">取消</button>
+        <button class="btn btn-save" id="btnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入收藏夹弹窗 -->
+  <div class="modal-overlay" id="importOverlay">
+    <div class="modal modal-import">
+      <div class="modal-header">
+        <h2 class="modal-title">从收藏夹导入</h2>
+        <div class="import-actions-top">
+          <button class="btn btn-sm" id="btnSelectAll">全选</button>
+          <span class="import-count" id="importCount"></span>
+        </div>
+      </div>
+      <div class="import-list" id="importList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="btnImportCancel">取消</button>
+        <button class="btn btn-save" id="btnImportConfirm">导入选中</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-item" data-action="edit">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      编辑
+    </div>
+    <div class="context-item context-item-danger" data-action="delete">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      删除
+    </div>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>
