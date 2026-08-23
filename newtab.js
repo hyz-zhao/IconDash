@@ -124,17 +124,25 @@
     dragGhost.style.left = (e.clientX - 21) + 'px';
     dragGhost.style.top = (e.clientY - 21) + 'px';
 
-    // 创建或移动占位框
+    // 创建或移动占位框 —— 找最近的卡片确定插入位置
     if (!dragPlaceholder) {
       dragPlaceholder = document.createElement('div');
       dragPlaceholder.className = 'drag-placeholder';
     }
 
-    var target = getCardAtPoint(e.clientX, e.clientY);
-    if (target && target.dataset.id !== dragSrcId) {
-      target.parentNode.insertBefore(dragPlaceholder, target);
-    } else if (!target) {
-      // 放到网格末尾（添加按钮之前）
+    var pos = getClosestCard(e.clientX, e.clientY);
+    if (pos.card) {
+      if (pos.before) {
+        iconGrid.insertBefore(dragPlaceholder, pos.card);
+      } else {
+        var next = pos.card.nextSibling;
+        if (next) {
+          iconGrid.insertBefore(dragPlaceholder, next);
+        } else {
+          iconGrid.appendChild(dragPlaceholder);
+        }
+      }
+    } else {
       var addBtn = iconGrid.querySelector('.card-add');
       if (addBtn) {
         iconGrid.insertBefore(dragPlaceholder, addBtn);
@@ -147,25 +155,36 @@
   document.addEventListener('mouseup', function (e) {
     if (!dragSrcId) return;
     if (dragGhost) { dragGhost.remove(); dragGhost = null; }
-    if (dragPlaceholder) { dragPlaceholder.remove(); dragPlaceholder = null; }
 
     if (!hasMoved) {
+      if (dragPlaceholder) { dragPlaceholder.remove(); dragPlaceholder = null; }
       document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('dragging'); });
       dragSrcId = null;
       return;
     }
 
-    var target = getCardAtPoint(e.clientX, e.clientY);
+    // 从 placeholder 在 DOM 中的位置计算插入索引
+    var insertIdx = links.length;
+    if (dragPlaceholder) {
+      var gridChildren = Array.from(iconGrid.children);
+      var placeholderIdx = gridChildren.indexOf(dragPlaceholder);
+      if (placeholderIdx !== -1) {
+        insertIdx = 0;
+        for (var i = 0; i < placeholderIdx; i++) {
+          var child = gridChildren[i];
+          if (child.classList.contains('card') && child.dataset.id !== dragSrcId) {
+            insertIdx++;
+          }
+        }
+      }
+      dragPlaceholder.remove();
+      dragPlaceholder = null;
+    }
+
     var srcIdx = links.findIndex(function (l) { return l.id === dragSrcId; });
     if (srcIdx === -1) { dragSrcId = null; return; }
     var moved = links.splice(srcIdx, 1)[0];
-
-    if (target && target.dataset.id !== dragSrcId) {
-      var dstIdx = links.findIndex(function (l) { return l.id === target.dataset.id; });
-      links.splice(dstIdx !== -1 ? dstIdx : links.length, 0, moved);
-    } else {
-      links.push(moved);
-    }
+    links.splice(insertIdx, 0, moved);
     saveLinks();
 
     // FLIP animation for reorder
@@ -221,12 +240,28 @@
     dragSrcId = null;
   });
 
-  // 获取鼠标位置下的卡片元素（跳过幽灵元素）
-  function getCardAtPoint(x, y) {
-    if (dragGhost) dragGhost.style.display = 'none';
-    var el = document.elementFromPoint(x, y);
-    if (dragGhost) dragGhost.style.display = '';
-    return el ? el.closest('.card') : null;
+  // 找离鼠标最近的卡片，判断插入位置
+  function getClosestCard(x, y) {
+    var cards = iconGrid.querySelectorAll('.card');
+    var best = null;
+    var bestDist = Infinity;
+    var before = true;
+
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (card.dataset.id === dragSrcId) continue;
+      var r = card.getBoundingClientRect();
+      var cx = r.left + r.width / 2;
+      var cy = r.top + r.height / 2;
+      var dist = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = card;
+        before = x < cx;
+      }
+    }
+
+    return { card: best, before: before };
   }
 
   function createCard(link) {
