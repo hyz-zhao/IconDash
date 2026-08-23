@@ -6,12 +6,12 @@
 
   // 默认示例链接
   const DEFAULT_LINKS = [
-    { id: '1', name: 'GitHub',    url: 'https://github.com',       favicon: '' },
-    { id: '2', name: 'Bilibili',  url: 'https://www.bilibili.com', favicon: '' },
-    { id: '3', name: '百度',      url: 'https://www.baidu.com',    favicon: '' },
-    { id: '4', name: '知乎',      url: 'https://www.zhihu.com',    favicon: '' },
-    { id: '5', name: 'Google',    url: 'https://www.google.com',   favicon: '' },
-    { id: '6', name: 'YouTube',   url: 'https://www.youtube.com',  favicon: '' },
+    { id: '1', name: 'GitHub',    url: 'https://github.com',       favicon: '', pos: 0 },
+    { id: '2', name: 'Bilibili',  url: 'https://www.bilibili.com', favicon: '', pos: 1 },
+    { id: '3', name: '百度',      url: 'https://www.baidu.com',    favicon: '', pos: 2 },
+    { id: '4', name: '知乎',      url: 'https://www.zhihu.com',    favicon: '', pos: 3 },
+    { id: '5', name: 'Google',    url: 'https://www.google.com',   favicon: '', pos: 4 },
+    { id: '6', name: 'YouTube',   url: 'https://www.youtube.com',  favicon: '', pos: 5 },
   ];
 
   // DOM 元素
@@ -30,8 +30,8 @@
   let contextTargetId = null;
   let importBookmarks = [];
   let dragSrcId = null;
+  let dragSrcPos = -1;
   let dragGhost = null;
-  let dragPlaceholder = null;
   let dragStartX = 0;
   let dragStartY = 0;
   let hasMoved = false;
@@ -52,8 +52,21 @@
     } catch (e) {
       links = [...DEFAULT_LINKS];
     }
+    migrateLinks();
     links.forEach(ensureFavicon);
     saveLinks();
+  }
+
+  function migrateLinks() {
+    var needsMigration = links.some(function (l) { return l.pos === undefined; });
+    if (needsMigration) {
+      links.forEach(function (l, i) { l.pos = i; });
+    }
+  }
+
+  function getNextPos() {
+    if (links.length === 0) return 0;
+    return Math.max.apply(null, links.map(function (l) { return l.pos; })) + 1;
   }
 
   function saveLinks() {
@@ -83,18 +96,34 @@
 
   function render(query) {
     const q = (query || '').toLowerCase().trim();
-    const filtered = q
-      ? links.filter(l =>
-          l.name.toLowerCase().includes(q) || l.url.toLowerCase().includes(q)
-        )
-      : links;
-
     iconGrid.innerHTML = '';
 
-    filtered.forEach(link => {
-      const card = createCard(link);
-      iconGrid.appendChild(card);
-    });
+    if (q) {
+      // 搜索模式：紧密排列匹配的卡片
+      links.forEach(function (link) {
+        if (link.name.toLowerCase().indexOf(q) !== -1 || link.url.toLowerCase().indexOf(q) !== -1) {
+          iconGrid.appendChild(createCard(link));
+        }
+      });
+    } else {
+      // 正常模式：稀疏布局，按 pos 排序，空位渲染为空白单元格
+      var sorted = links.slice().sort(function (a, b) { return a.pos - b.pos; });
+      var maxPos = sorted.length > 0 ? sorted[sorted.length - 1].pos : -1;
+      var posMap = {};
+      sorted.forEach(function (l) { posMap[l.pos] = l; });
+
+      for (var pos = 0; pos <= maxPos; pos++) {
+        var link = posMap[pos];
+        if (link) {
+          iconGrid.appendChild(createCard(link));
+        } else {
+          var empty = document.createElement('div');
+          empty.className = 'cell-empty';
+          empty.setAttribute('data-pos', pos);
+          iconGrid.appendChild(empty);
+        }
+      }
+    }
 
     // 添加按钮
     const addCard = document.createElement('div');
@@ -124,31 +153,15 @@
     dragGhost.style.left = (e.clientX - 21) + 'px';
     dragGhost.style.top = (e.clientY - 21) + 'px';
 
-    // 创建或移动占位框 —— 找最近的卡片确定插入位置
-    if (!dragPlaceholder) {
-      dragPlaceholder = document.createElement('div');
-      dragPlaceholder.className = 'drag-placeholder';
+    // 高亮最近的目标单元格
+    var targetPos = getClosestCell(e.clientX, e.clientY);
+    var allCells = iconGrid.querySelectorAll('.card, .cell-empty');
+    for (var i = 0; i < allCells.length; i++) {
+      allCells[i].classList.remove('drag-target');
     }
-
-    var pos = getClosestCard(e.clientX, e.clientY);
-    if (pos.card) {
-      if (pos.before) {
-        iconGrid.insertBefore(dragPlaceholder, pos.card);
-      } else {
-        var next = pos.card.nextSibling;
-        if (next) {
-          iconGrid.insertBefore(dragPlaceholder, next);
-        } else {
-          iconGrid.appendChild(dragPlaceholder);
-        }
-      }
-    } else {
-      var addBtn = iconGrid.querySelector('.card-add');
-      if (addBtn) {
-        iconGrid.insertBefore(dragPlaceholder, addBtn);
-      } else {
-        iconGrid.appendChild(dragPlaceholder);
-      }
+    if (targetPos !== null) {
+      var targetCell = iconGrid.querySelector('[data-pos="' + targetPos + '"]');
+      if (targetCell) targetCell.classList.add('drag-target');
     }
   });
 
@@ -156,112 +169,105 @@
     if (!dragSrcId) return;
     if (dragGhost) { dragGhost.remove(); dragGhost = null; }
 
+    // 清除所有高亮
+    var allCells = iconGrid.querySelectorAll('.card, .cell-empty');
+    for (var i = 0; i < allCells.length; i++) {
+      allCells[i].classList.remove('drag-target');
+    }
+
     if (!hasMoved) {
-      if (dragPlaceholder) { dragPlaceholder.remove(); dragPlaceholder = null; }
       document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('dragging'); });
       dragSrcId = null;
+      dragSrcPos = -1;
       return;
     }
 
-    // 从 placeholder 在 DOM 中的位置计算插入索引
-    var insertIdx = links.length;
-    if (dragPlaceholder) {
-      var gridChildren = Array.from(iconGrid.children);
-      var placeholderIdx = gridChildren.indexOf(dragPlaceholder);
-      if (placeholderIdx !== -1) {
-        insertIdx = 0;
-        for (var i = 0; i < placeholderIdx; i++) {
-          var child = gridChildren[i];
-          if (child.classList.contains('card') && child.dataset.id !== dragSrcId) {
-            insertIdx++;
-          }
-        }
-      }
-      dragPlaceholder.remove();
-      dragPlaceholder = null;
-    }
+    var targetPos = getClosestCell(e.clientX, e.clientY);
 
-    var srcIdx = links.findIndex(function (l) { return l.id === dragSrcId; });
-    if (srcIdx === -1) { dragSrcId = null; return; }
-    var moved = links.splice(srcIdx, 1)[0];
-    links.splice(insertIdx, 0, moved);
-    saveLinks();
-
-    // FLIP animation for reorder
-    var cards = iconGrid.querySelectorAll('.card');
-    var oldRects = [];
-    cards.forEach(function (c) { oldRects.push(c.getBoundingClientRect()); });
-
-    // Reorder DOM to match links array
-    var linkIdSet = new Set(links.map(function (l) { return l.id; }));
-    var currentCards = iconGrid.querySelectorAll('.card');
-    currentCards.forEach(function (c) {
-      if (linkIdSet.has(c.dataset.id)) {
-        iconGrid.appendChild(c);
-      }
-    });
-    links.forEach(function (l) {
-      var card = iconGrid.querySelector('.card[data-id="' + l.id + '"]');
-      if (card) iconGrid.appendChild(card);
-    });
-
-    var newRects = [];
-    cards.forEach(function (c) { newRects.push(c.getBoundingClientRect()); });
-
-    // Apply inverse transforms
-    cards.forEach(function (c, i) {
-      var dy = oldRects[i].top - newRects[i].top;
-      var dx = oldRects[i].left - newRects[i].left;
-      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-        c.style.transition = 'none';
-        c.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
-      }
-    });
-
-    // Force reflow and animate to identity
-    iconGrid.offsetHeight;
-    cards.forEach(function (c) {
-      c.style.transition = 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
-      c.style.transform = '';
-    });
-
-    // Clean up after animation
-    var firstCard = cards[0];
-    if (firstCard) {
-      firstCard.addEventListener('transitionend', function cleanup() {
-        firstCard.removeEventListener('transitionend', cleanup);
-        cards.forEach(function (c) {
-          c.style.transition = '';
-          c.classList.remove('dragging');
-        });
+    if (targetPos !== null && targetPos !== dragSrcPos) {
+      // 记录旧位置（按 ID，因为 render 会重建 DOM）
+      var oldRects = {};
+      document.querySelectorAll('.card').forEach(function (c) {
+        oldRects[c.dataset.id] = c.getBoundingClientRect();
       });
+
+      var srcLink = links.find(function (l) { return l.id === dragSrcId; });
+      var targetLink = links.find(function (l) { return l.pos === targetPos && l.id !== dragSrcId; });
+
+      if (targetLink) {
+        // 交换位置
+        targetLink.pos = dragSrcPos;
+        srcLink.pos = targetPos;
+      } else {
+        // 移动到空位
+        srcLink.pos = targetPos;
+      }
+
+      saveLinks();
+      render(searchInput.value);
+
+      // FLIP animation
+      var cards = document.querySelectorAll('.card');
+      cards.forEach(function (c) {
+        var oldRect = oldRects[c.dataset.id];
+        if (!oldRect) return;
+        var newRect = c.getBoundingClientRect();
+        var dx = oldRect.left - newRect.left;
+        var dy = oldRect.top - newRect.top;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          c.style.transition = 'none';
+          c.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        }
+      });
+
+      iconGrid.offsetHeight;
+
+      cards.forEach(function (c) {
+        c.style.transition = 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        c.style.transform = '';
+      });
+
+      var firstCard = cards[0];
+      if (firstCard) {
+        firstCard.addEventListener('transitionend', function cleanup() {
+          firstCard.removeEventListener('transitionend', cleanup);
+          cards.forEach(function (c) {
+            c.style.transition = '';
+            c.classList.remove('dragging');
+          });
+        });
+      }
+    } else {
+      document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('dragging'); });
     }
 
     dragSrcId = null;
+    dragSrcPos = -1;
   });
 
-  // 找离鼠标最近的卡片，判断插入位置
-  function getClosestCard(x, y) {
-    var cards = iconGrid.querySelectorAll('.card');
+  // 找离鼠标最近的单元格（卡片或空位），返回其 pos
+  function getClosestCell(x, y) {
+    var cells = iconGrid.querySelectorAll('.card, .cell-empty');
     var best = null;
     var bestDist = Infinity;
-    var before = true;
 
-    for (var i = 0; i < cards.length; i++) {
-      var card = cards[i];
-      if (card.dataset.id === dragSrcId) continue;
-      var r = card.getBoundingClientRect();
+    for (var i = 0; i < cells.length; i++) {
+      var cell = cells[i];
+      if (cell.dataset.id === dragSrcId) continue;
+      var r = cell.getBoundingClientRect();
       var cx = r.left + r.width / 2;
       var cy = r.top + r.height / 2;
       var dist = (x - cx) * (x - cx) + (y - cy) * (y - cy);
       if (dist < bestDist) {
         bestDist = dist;
-        best = card;
-        before = x < cx;
+        best = cell;
       }
     }
 
-    return { card: best, before: before };
+    if (best && best.dataset.pos !== undefined) {
+      return parseInt(best.dataset.pos);
+    }
+    return null;
   }
 
   function createCard(link) {
@@ -269,11 +275,13 @@
     card.className = 'card';
     card.href = link.url;
     card.setAttribute('data-id', link.id);
+    card.setAttribute('data-pos', link.pos);
 
     card.addEventListener('mousedown', function (e) {
       if (e.button !== 0) return;
-      e.preventDefault(); // 阻止浏览器原生链接拖拽
+      e.preventDefault();
       dragSrcId = link.id;
+      dragSrcPos = link.pos;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       hasMoved = false;
@@ -428,6 +436,7 @@
       return;
     }
     var imported = 0;
+    var nextPos = getNextPos();
     var existingUrls = new Set(links.map(function (l) { return l.url; }));
     checked.forEach(function (cb) {
       var bm = importBookmarks[parseInt(cb.value)];
@@ -438,6 +447,7 @@
         name: bm.title,
         url: bm.url,
         favicon: domain ? FAVICON_API + domain + '&sz=64' : '',
+        pos: nextPos++,
       });
       existingUrls.add(bm.url);
       imported++;
@@ -546,6 +556,7 @@
         name: name,
         url: url,
         favicon: favicon,
+        pos: getNextPos(),
       });
     }
 
