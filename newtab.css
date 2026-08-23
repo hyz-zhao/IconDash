@@ -17,7 +17,9 @@
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
   --radius: 16px;
   --radius-sm: 12px;
-  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-fast: 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="dark"] {
@@ -67,14 +69,20 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
   box-shadow: var(--shadow);
 }
 
-.theme-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: scale(1.05);
+.theme-toggle:active {
+  transform: scale(0.9);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .theme-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: scale(1.05);
+  }
 }
 
 [data-theme="dark"] .icon-sun { display: block; }
@@ -153,7 +161,7 @@ body {
   color: var(--text);
   font-size: 15px;
   outline: none;
-  transition: all var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -185,16 +193,22 @@ body {
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
   font-family: inherit;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
 }
 
-.btn-import:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+.btn-import:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-import:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
 }
 
 /* ===== 图标网格 ===== */
@@ -219,20 +233,62 @@ body {
   border: 1px solid transparent;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), background var(--transition), border-color var(--transition), box-shadow var(--transition);
   text-decoration: none;
   color: var(--text);
   position: relative;
 }
 
-.card:hover {
-  background: var(--surface);
-  border-color: var(--border);
-  transform: translateY(-3px);
-  box-shadow: var(--shadow);
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    background: var(--surface);
+    border-color: var(--border);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow);
+  }
 }
 
 .card:active { transform: translateY(-1px) scale(0.97); }
+
+.card.dragging {
+  opacity: 0.35;
+  transform: scale(0.92);
+}
+
+.card.drag-over {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  transform: scale(1.05);
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 999;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0.9;
+  transition: none;
+}
+
+.drag-placeholder {
+  width: 100%;
+  min-height: 86px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  animation: placeholderPulse 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes placeholderPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
 
 .card-icon {
   width: 42px;
@@ -244,13 +300,15 @@ body {
   background: rgba(0, 0, 0, 0.03);
   overflow: hidden;
   flex-shrink: 0;
-  transition: all var(--transition);
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), background var(--transition), box-shadow var(--transition);
 }
 
-.card:hover .card-icon {
-  background: var(--accent-soft);
-  box-shadow: 0 0 16px rgba(240, 136, 80, 0.15);
-  transform: scale(1.06);
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .card-icon {
+    background: var(--accent-soft);
+    box-shadow: 0 0 16px rgba(240, 136, 80, 0.15);
+    transform: scale(1.06);
+  }
 }
 
 .card-icon img {
@@ -284,7 +342,9 @@ body {
   transition: color var(--transition);
 }
 
-.card:hover .card-name { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .card-name { color: var(--text); }
+}
 
 /* ===== 添加按钮 ===== */
 
@@ -299,16 +359,22 @@ body {
   border: 1.5px dashed var(--border);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), background var(--transition), border-color var(--transition), color var(--transition);
   color: var(--text-muted);
   min-height: 90px;
 }
 
-.card-add:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
-  transform: translateY(-2px);
+.card-add:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card-add:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+    transform: translateY(-2px);
+  }
 }
 
 .card-add .plus {
@@ -321,10 +387,12 @@ body {
   font-size: 24px;
   font-weight: 200;
   background: rgba(0, 0, 0, 0.03);
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition);
 }
 
-.card-add:hover .plus { background: var(--accent-soft); color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .card-add:hover .plus { background: var(--accent-soft); color: var(--accent); }
+}
 
 .card-add .add-text { font-size: 11px; }
 
@@ -352,11 +420,11 @@ body {
   width: 400px;
   max-width: 90vw;
   box-shadow: var(--shadow-lg);
-  animation: modalIn 0.25s ease;
+  animation: modalIn 0.25s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.92) translateY(-15px); }
+  from { opacity: 0; transform: scale(0.95) translateY(-10px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
@@ -388,7 +456,7 @@ body {
   color: var(--text);
   font-size: 14px;
   outline: none;
-  transition: all var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
   font-family: inherit;
 }
 
@@ -413,7 +481,7 @@ body {
   font-size: 14px;
   cursor: pointer;
   border: none;
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), box-shadow var(--transition), color var(--transition);
   font-family: inherit;
   font-weight: 500;
 }
@@ -425,7 +493,9 @@ body {
   color: var(--text-muted);
 }
 
-.btn-cancel:hover { background: rgba(0, 0, 0, 0.08); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-cancel:hover { background: rgba(0, 0, 0, 0.08); color: var(--text); }
+}
 
 .btn-save {
   background: var(--accent);
@@ -434,9 +504,11 @@ body {
   box-shadow: 0 4px 14px var(--accent-glow);
 }
 
-.btn-save:hover {
-  background: var(--accent-hover);
-  box-shadow: 0 6px 20px var(--accent-glow);
+@media (hover: hover) and (pointer: fine) {
+  .btn-save:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
 }
 
 .btn-sm {
@@ -447,14 +519,20 @@ body {
   border: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), border-color var(--transition), color var(--transition);
   font-family: inherit;
 }
 
-.btn-sm:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
+.btn-sm:active {
+  transform: scale(0.95);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
 }
 
 /* ===== 导入弹窗 ===== */
@@ -504,7 +582,9 @@ body {
   transition: background var(--transition);
 }
 
-.import-item:hover { background: rgba(0, 0, 0, 0.03); }
+@media (hover: hover) and (pointer: fine) {
+  .import-item:hover { background: rgba(0, 0, 0, 0.03); }
+}
 
 .import-item input[type="checkbox"] {
   appearance: none;
@@ -515,7 +595,7 @@ body {
   flex-shrink: 0;
   cursor: pointer;
   position: relative;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .import-item input[type="checkbox"]:checked {
@@ -576,12 +656,21 @@ body {
   padding: 6px;
   min-width: 150px;
   box-shadow: var(--shadow-lg);
-  animation: menuIn 0.15s ease;
+  animation: menuIn 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.context-menu.exiting {
+  animation: menuOut 0.12s ease-in forwards;
 }
 
 @keyframes menuIn {
-  from { opacity: 0; transform: scale(0.9) translateY(-4px); }
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes menuOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.95) translateY(-4px); }
 }
 
 .context-item {
@@ -589,18 +678,36 @@ body {
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), color var(--transition);
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--text-muted);
 }
 
-.context-item:hover { background: rgba(0, 0, 0, 0.04); color: var(--text); }
+.context-item:active {
+  transform: scale(0.97);
+}
 
-.context-item-danger:hover {
-  background: rgba(217, 80, 96, 0.08);
-  color: var(--danger);
+@media (hover: hover) and (pointer: fine) {
+  .context-item:hover { background: rgba(0, 0, 0, 0.04); color: var(--text); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .context-item-danger:hover {
+    background: rgba(217, 80, 96, 0.08);
+    color: var(--danger);
+  }
 }
 
 .hidden { display: none !important; }
+
+/* ===== 无障碍 ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

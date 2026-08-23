@@ -29,6 +29,12 @@
   let editingId = null;
   let contextTargetId = null;
   let importBookmarks = [];
+  let dragSrcId = null;
+  let dragGhost = null;
+  let dragPlaceholder = null;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let hasMoved = false;
 
   // ========== 数据层 ==========
 
@@ -101,11 +107,143 @@
     iconGrid.appendChild(addCard);
   }
 
+  // 鼠标拖拽 —— 全局移动与释放
+  document.addEventListener('mousemove', function (e) {
+    if (!dragSrcId) return;
+    var dx = e.clientX - dragStartX;
+    var dy = e.clientY - dragStartY;
+    if (!hasMoved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    hasMoved = true;
+
+    // 创建或更新拖拽幽灵
+    if (!dragGhost) {
+      dragGhost = document.createElement('div');
+      dragGhost.className = 'drag-ghost';
+      document.body.appendChild(dragGhost);
+    }
+    dragGhost.style.left = (e.clientX - 21) + 'px';
+    dragGhost.style.top = (e.clientY - 21) + 'px';
+
+    // 创建或移动占位框
+    if (!dragPlaceholder) {
+      dragPlaceholder = document.createElement('div');
+      dragPlaceholder.className = 'drag-placeholder';
+    }
+
+    var target = getCardAtPoint(e.clientX, e.clientY);
+    if (target && target.dataset.id !== dragSrcId) {
+      target.parentNode.insertBefore(dragPlaceholder, target);
+    } else if (!target) {
+      // 放到网格末尾（添加按钮之前）
+      var addBtn = iconGrid.querySelector('.card-add');
+      if (addBtn) {
+        iconGrid.insertBefore(dragPlaceholder, addBtn);
+      } else {
+        iconGrid.appendChild(dragPlaceholder);
+      }
+    }
+  });
+
+  document.addEventListener('mouseup', function (e) {
+    if (!dragSrcId) return;
+    if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+    if (dragPlaceholder) { dragPlaceholder.remove(); dragPlaceholder = null; }
+
+    if (!hasMoved) {
+      document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('dragging'); });
+      dragSrcId = null;
+      return;
+    }
+
+    var target = getCardAtPoint(e.clientX, e.clientY);
+    var srcIdx = links.findIndex(function (l) { return l.id === dragSrcId; });
+    if (srcIdx === -1) { dragSrcId = null; return; }
+    var moved = links.splice(srcIdx, 1)[0];
+
+    if (target && target.dataset.id !== dragSrcId) {
+      var dstIdx = links.findIndex(function (l) { return l.id === target.dataset.id; });
+      links.splice(dstIdx !== -1 ? dstIdx : links.length, 0, moved);
+    } else {
+      links.push(moved);
+    }
+    saveLinks();
+
+    // FLIP animation for reorder
+    var cards = iconGrid.querySelectorAll('.card');
+    var oldRects = [];
+    cards.forEach(function (c) { oldRects.push(c.getBoundingClientRect()); });
+
+    // Reorder DOM to match links array
+    var linkIdSet = new Set(links.map(function (l) { return l.id; }));
+    var currentCards = iconGrid.querySelectorAll('.card');
+    currentCards.forEach(function (c) {
+      if (linkIdSet.has(c.dataset.id)) {
+        iconGrid.appendChild(c);
+      }
+    });
+    links.forEach(function (l) {
+      var card = iconGrid.querySelector('.card[data-id="' + l.id + '"]');
+      if (card) iconGrid.appendChild(card);
+    });
+
+    var newRects = [];
+    cards.forEach(function (c) { newRects.push(c.getBoundingClientRect()); });
+
+    // Apply inverse transforms
+    cards.forEach(function (c, i) {
+      var dy = oldRects[i].top - newRects[i].top;
+      var dx = oldRects[i].left - newRects[i].left;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        c.style.transition = 'none';
+        c.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      }
+    });
+
+    // Force reflow and animate to identity
+    iconGrid.offsetHeight;
+    cards.forEach(function (c) {
+      c.style.transition = 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      c.style.transform = '';
+    });
+
+    // Clean up after animation
+    var firstCard = cards[0];
+    if (firstCard) {
+      firstCard.addEventListener('transitionend', function cleanup() {
+        firstCard.removeEventListener('transitionend', cleanup);
+        cards.forEach(function (c) {
+          c.style.transition = '';
+          c.classList.remove('dragging');
+        });
+      });
+    }
+
+    dragSrcId = null;
+  });
+
+  // 获取鼠标位置下的卡片元素（跳过幽灵元素）
+  function getCardAtPoint(x, y) {
+    if (dragGhost) dragGhost.style.display = 'none';
+    var el = document.elementFromPoint(x, y);
+    if (dragGhost) dragGhost.style.display = '';
+    return el ? el.closest('.card') : null;
+  }
+
   function createCard(link) {
     const card = document.createElement('a');
     card.className = 'card';
     card.href = link.url;
     card.setAttribute('data-id', link.id);
+
+    card.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault(); // 阻止浏览器原生链接拖拽
+      dragSrcId = link.id;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      hasMoved = false;
+      card.classList.add('dragging');
+    });
 
     const iconWrap = document.createElement('div');
     iconWrap.className = 'card-icon';
@@ -130,6 +268,13 @@
 
     card.appendChild(iconWrap);
     card.appendChild(nameEl);
+
+    card.addEventListener('click', function (e) {
+      if (hasMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
 
     card.addEventListener('contextmenu', function (e) {
       e.preventDefault();
@@ -382,6 +527,7 @@
   // ========== 右键菜单 ==========
 
   function showContextMenu(x, y) {
+    contextMenu.classList.remove('exiting');
     contextMenu.style.display = 'block';
     contextMenu.style.left = x + 'px';
     contextMenu.style.top = y + 'px';
@@ -397,7 +543,14 @@
   }
 
   function hideContextMenu() {
-    contextMenu.style.display = 'none';
+    var menu = contextMenu;
+    if (menu.style.display === 'none') return;
+    menu.classList.add('exiting');
+    menu.addEventListener('animationend', function handler() {
+      menu.removeEventListener('animationend', handler);
+      menu.classList.remove('exiting');
+      menu.style.display = 'none';
+    });
     contextTargetId = null;
   }
 
@@ -486,6 +639,4 @@
     setInterval(update, 10000);
   }
 
-    initTime();
-  initParticles();
-})();
+    })();
