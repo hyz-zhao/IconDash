@@ -154,13 +154,13 @@
     dragGhost.style.top = (e.clientY - 21) + 'px';
 
     // 高亮最近的目标单元格
-    var targetPos = getClosestCell(e.clientX, e.clientY);
+    var result = getClosestCell(e.clientX, e.clientY);
     var allCells = iconGrid.querySelectorAll('.card, .cell-empty');
     for (var i = 0; i < allCells.length; i++) {
       allCells[i].classList.remove('drag-target');
     }
-    if (targetPos !== null) {
-      var targetCell = iconGrid.querySelector('[data-pos="' + targetPos + '"]');
+    if (result) {
+      var targetCell = iconGrid.querySelector('[data-pos="' + result.pos + '"]');
       if (targetCell) targetCell.classList.add('drag-target');
     }
   });
@@ -182,9 +182,9 @@
       return;
     }
 
-    var targetPos = getClosestCell(e.clientX, e.clientY);
+    var result = getClosestCell(e.clientX, e.clientY);
 
-    if (targetPos !== null && targetPos !== dragSrcPos) {
+    if (result && result.pos !== dragSrcPos) {
       // 记录旧位置（按 ID，因为 render 会重建 DOM）
       var oldRects = {};
       document.querySelectorAll('.card').forEach(function (c) {
@@ -192,15 +192,17 @@
       });
 
       var srcLink = links.find(function (l) { return l.id === dragSrcId; });
-      var targetLink = links.find(function (l) { return l.pos === targetPos && l.id !== dragSrcId; });
+      // 目标位置：before 表示插入到该单元格之前（取其 pos），否则插入到之后（pos+1）
+      var insertPos = result.before ? result.pos : result.pos + 1;
+      // 源卡片在目标位置之前时，移除后目标位置需左移一位
+      if (dragSrcPos < insertPos) insertPos--;
 
-      if (targetLink) {
-        // 交换位置
-        targetLink.pos = dragSrcPos;
-        srcLink.pos = targetPos;
-      } else {
-        // 移动到空位
-        srcLink.pos = targetPos;
+      if (insertPos !== dragSrcPos) {
+        // 移除源卡片，按 pos 排序，在目标位置插入，重新编号
+        var otherLinks = links.filter(function (l) { return l.id !== dragSrcId; });
+        otherLinks.sort(function (a, b) { return a.pos - b.pos; });
+        otherLinks.splice(insertPos, 0, srcLink);
+        otherLinks.forEach(function (l, i) { l.pos = i; });
       }
 
       saveLinks();
@@ -245,11 +247,12 @@
     dragSrcPos = -1;
   });
 
-  // 找离鼠标最近的单元格（卡片或空位），返回其 pos
+  // 找离鼠标最近的单元格，返回 { pos, before }
   function getClosestCell(x, y) {
     var cells = iconGrid.querySelectorAll('.card, .cell-empty');
     var best = null;
     var bestDist = Infinity;
+    var before = true;
 
     for (var i = 0; i < cells.length; i++) {
       var cell = cells[i];
@@ -261,11 +264,12 @@
       if (dist < bestDist) {
         bestDist = dist;
         best = cell;
+        before = x < cx;
       }
     }
 
     if (best && best.dataset.pos !== undefined) {
-      return parseInt(best.dataset.pos);
+      return { pos: parseInt(best.dataset.pos), before: before };
     }
     return null;
   }
