@@ -214,20 +214,21 @@ body {
 /* ===== 图标网格 ===== */
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 14px;
+  position: relative;
   width: 100%;
   max-width: 780px;
+  min-height: 400px;
 }
 
 /* ===== 卡片 ===== */
 
 .card {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  width: 88px;
   padding: 16px 6px 14px;
   background: transparent;
   border: 1px solid transparent;
@@ -236,7 +237,6 @@ body {
   transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), background var(--transition), border-color var(--transition), box-shadow var(--transition);
   text-decoration: none;
   color: var(--text);
-  position: relative;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -253,43 +253,6 @@ body {
 .card.dragging {
   opacity: 0.35;
   transform: scale(0.92);
-}
-
-.card.drag-target {
-  border-color: var(--accent) !important;
-  background: var(--accent-soft) !important;
-}
-
-.cell-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 6px 14px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  min-height: 90px;
-  transition: border-color var(--transition), background var(--transition);
-}
-
-.cell-empty.drag-target {
-  border-color: var(--accent) !important;
-  background: var(--accent-soft) !important;
-}
-
-.drag-ghost {
-  position: fixed;
-  z-index: 999;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1.5px solid var(--accent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-  opacity: 0.9;
-  transition: none;
 }
 
 .card-icon {
@@ -351,23 +314,28 @@ body {
 /* ===== 添加按钮 ===== */
 
 .card-add {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 50;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 16px 6px 14px;
-  background: transparent;
-  border: 1.5px dashed var(--border);
-  border-radius: var(--radius);
+  gap: 4px;
+  width: 64px;
+  height: 64px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), background var(--transition), border-color var(--transition), color var(--transition);
+  transition: transform var(--transition-fast), background var(--transition), border-color var(--transition), box-shadow var(--transition);
   color: var(--text-muted);
-  min-height: 90px;
+  box-shadow: var(--shadow);
 }
 
 .card-add:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -375,28 +343,18 @@ body {
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-soft);
+    box-shadow: var(--shadow-lg);
     transform: translateY(-2px);
   }
 }
 
 .card-add .plus {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 200;
-  background: rgba(0, 0, 0, 0.03);
-  transition: background var(--transition), color var(--transition);
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .card-add:hover .plus { background: var(--accent-soft); color: var(--accent); }
-}
-
-.card-add .add-text { font-size: 11px; }
+.card-add .add-text { font-size: 10px; }
 
 /* ===== 弹窗 ===== */
 
