@@ -3,17 +3,17 @@
 
   const STORAGE_KEY = 'iconDash_links';
   const FAVICON_API = 'https://www.google.com/s2/favicons?domain=';
-  const SNAP_X = 100;
+  const SNAP_X = 80;
   const SNAP_Y = 95;
 
   // 默认示例链接
   const DEFAULT_LINKS = [
-    { id: '1', name: 'GitHub',    url: 'https://github.com',       favicon: '', x: 0,   y: 0 },
-    { id: '2', name: 'Bilibili',  url: 'https://www.bilibili.com', favicon: '', x: 100, y: 0 },
-    { id: '3', name: '百度',      url: 'https://www.baidu.com',    favicon: '', x: 200, y: 0 },
-    { id: '4', name: '知乎',      url: 'https://www.zhihu.com',    favicon: '', x: 300, y: 0 },
-    { id: '5', name: 'Google',    url: 'https://www.google.com',   favicon: '', x: 400, y: 0 },
-    { id: '6', name: 'YouTube',   url: 'https://www.youtube.com',  favicon: '', x: 500, y: 0 },
+    { id: '1', name: 'GitHub',    url: 'https://github.com',       favicon: '', x: 160, y: 0 },
+    { id: '2', name: 'Bilibili',  url: 'https://www.bilibili.com', favicon: '', x: 240, y: 0 },
+    { id: '3', name: '百度',      url: 'https://www.baidu.com',    favicon: '', x: 320, y: 0 },
+    { id: '4', name: '知乎',      url: 'https://www.zhihu.com',    favicon: '', x: 400, y: 0 },
+    { id: '5', name: 'Google',    url: 'https://www.google.com',   favicon: '', x: 480, y: 0 },
+    { id: '6', name: 'YouTube',   url: 'https://www.youtube.com',  favicon: '', x: 560, y: 0 },
   ];
 
   // DOM 元素
@@ -64,7 +64,7 @@
   function migrateLinks() {
     var needsMigration = links.some(function (l) { return l.x === undefined || l.pos !== undefined; });
     if (needsMigration) {
-      var cols = 7; // 默认 7 列（780px / 100px 约等于 7）
+      var cols = 10; // 默认 10 列（800px / 80px）
       links.forEach(function (l) {
         if (l.x === undefined) {
           if (l.pos !== undefined) {
@@ -79,6 +79,23 @@
         if (l.pos !== undefined) delete l.pos;
       });
     }
+
+    // 检测旧网格间距（100px → 80px），重新吸附
+    var needsResnap = links.some(function (l) { return l.x % SNAP_X !== 0 || l.y % SNAP_Y !== 0; });
+    if (needsResnap) {
+      var occupied = new Set();
+      links.forEach(function (l) {
+        l.x = Math.round(l.x / SNAP_X) * SNAP_X;
+        l.y = Math.round(l.y / SNAP_Y) * SNAP_Y;
+        var key = l.x + ',' + l.y;
+        while (occupied.has(key)) {
+          l.x += SNAP_X;
+          if (l.x > 720) { l.x = 0; l.y += SNAP_Y; }
+          key = l.x + ',' + l.y;
+        }
+        occupied.add(key);
+      });
+    }
   }
 
   function getNextSlot() {
@@ -87,7 +104,7 @@
     var col = 0, row = 0;
     while (occupied.has((col * SNAP_X) + ',' + (row * SNAP_Y))) {
       col++;
-      if (col * SNAP_X >= 700) { col = 0; row++; }
+      if (col * SNAP_X >= 800) { col = 0; row++; }
     }
     return { x: col * SNAP_X, y: row * SNAP_Y };
   }
@@ -148,7 +165,7 @@
     // 计算新位置，吸附到网格
     var newX = linkStartX + dx;
     var newY = linkStartY + dy;
-    newX = Math.max(0, Math.round(newX / SNAP_X) * SNAP_X);
+    newX = Math.min(720, Math.max(0, Math.round(newX / SNAP_X) * SNAP_X));
     newY = Math.max(0, Math.round(newY / SNAP_Y) * SNAP_Y);
 
     card.style.left = newX + 'px';
@@ -172,7 +189,7 @@
     var dy = e.clientY - dragStartY;
     var newX = linkStartX + dx;
     var newY = linkStartY + dy;
-    newX = Math.max(0, Math.round(newX / SNAP_X) * SNAP_X);
+    newX = Math.min(720, Math.max(0, Math.round(newX / SNAP_X) * SNAP_X));
     newY = Math.max(0, Math.round(newY / SNAP_Y) * SNAP_Y);
 
     // 记录旧位置（render 前）
@@ -259,18 +276,23 @@
     const iconWrap = document.createElement('div');
     iconWrap.className = 'card-icon';
 
+    const fallback = createFallback(link.name);
+    iconWrap.appendChild(fallback);
+
     if (link.favicon) {
       const img = document.createElement('img');
       img.src = link.favicon;
       img.alt = '';
       img.loading = 'lazy';
+      img.style.display = 'none';
+      img.onload = function () {
+        fallback.style.display = 'none';
+        img.style.display = '';
+      };
       img.onerror = function () {
-        img.style.display = 'none';
-        iconWrap.appendChild(createFallback(link.name));
+        img.remove();
       };
       iconWrap.appendChild(img);
-    } else {
-      iconWrap.appendChild(createFallback(link.name));
     }
 
     const nameEl = document.createElement('span');
@@ -643,15 +665,22 @@
   // ========== 时间显示 ==========
 
   function initTime() {
+    var greetingEl = document.getElementById('greeting');
     var timeEl = document.getElementById('timeDisplay');
     var dateEl = document.getElementById('dateDisplay');
     if (!timeEl || !dateEl) return;
 
     function update() {
       var now = new Date();
-      var h = now.getHours().toString().padStart(2, '0');
+      var hours = now.getHours();
+      var h = hours.toString().padStart(2, '0');
       var m = now.getMinutes().toString().padStart(2, '0');
       timeEl.textContent = h + ':' + m;
+
+      if (greetingEl) {
+        var g = hours < 6 ? '夜深了' : hours < 9 ? '早上好' : hours < 12 ? '上午好' : hours < 18 ? '下午好' : '晚上好';
+        greetingEl.textContent = g;
+      }
 
       var days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
       dateEl.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + days[now.getDay()];

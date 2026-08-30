@@ -2,6 +2,7 @@
 
 :root {
   --bg: #f0ede8;
+  --bg-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, #f8f4ec 0%, #e8e2d4 100%);
   --surface: #fff;
   --surface-hover: #faf8f5;
   --text: #2c2c38;
@@ -20,10 +21,14 @@
   --transition: 0.25s cubic-bezier(0.23, 1, 0.32, 1);
   --transition-fast: 0.15s cubic-bezier(0.23, 1, 0.32, 1);
   --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fallback-from: #f08850;
+  --fallback-to: #f0b860;
+  --fallback-text: #fff;
 }
 
 [data-theme="dark"] {
   --bg: #0f0f1c;
+  --bg-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, #1e1e38 0%, #0a0a18 100%);
   --surface: #1a1a30;
   --surface-hover: #222240;
   --text: #e8e4f0;
@@ -37,11 +42,14 @@
   --border-hover: rgba(255, 255, 255, 0.12);
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --fallback-from: #f0a060;
+  --fallback-to: #f0c870;
+  --fallback-text: #1a1a30;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: var(--bg);
+  background: var(--bg-gradient);
   color: var(--text);
   min-height: 100vh;
   display: flex;
@@ -108,6 +116,14 @@ body {
   margin-bottom: 44px;
 }
 
+.greeting {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
 .time {
   font-size: 72px;
   font-weight: 200;
@@ -161,7 +177,7 @@ body {
   color: var(--text);
   font-size: 15px;
   outline: none;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -169,7 +185,10 @@ body {
 
 .search-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 0 0 4px var(--accent-glow), 0 4px 20px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* ===== 工具栏 ===== */
@@ -215,8 +234,8 @@ body {
 
 .grid {
   position: relative;
-  width: 100%;
-  max-width: 780px;
+  width: 808px;
+  max-width: 100%;
   min-height: 400px;
 }
 
@@ -243,8 +262,8 @@ body {
   .card:hover {
     background: var(--surface);
     border-color: var(--border);
-    transform: translateY(-3px);
-    box-shadow: var(--shadow);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--accent-glow);
   }
 }
 
@@ -271,8 +290,8 @@ body {
 @media (hover: hover) and (pointer: fine) {
   .card:hover .card-icon {
     background: var(--accent-soft);
-    box-shadow: 0 0 16px rgba(240, 136, 80, 0.15);
-    transform: scale(1.06);
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 8px var(--accent-glow);
+    transform: scale(1.08);
   }
 }
 
@@ -286,8 +305,8 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #e8e0f0, #d8d0e8);
-  color: #6a60a0;
+  background: linear-gradient(135deg, var(--fallback-from), var(--fallback-to));
+  color: var(--fallback-text);
   display: flex;
   align-items: center;
   justify-content: center;
