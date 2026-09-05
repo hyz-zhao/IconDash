@@ -701,6 +701,7 @@
 
   var STORE_KEY = 'iconDash_wallpaper';
   var IMG_KEY = 'image';
+  var IMG_LS_KEY = 'iconDash_wallpaperImage'; // IndexedDB 不可用时的降级存储
   var VIDEO_KEY = 'videoHandle';
   var PRESET_SET = { dawn: 1, mist: 1, dusk: 1, sage: 1 };
 
@@ -773,13 +774,27 @@
 
   function openDB() {
     return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (!settled) { settled = true; reject(new Error('IndexedDB 不可用（超时）')); }
+      }, 2500);
       var req = indexedDB.open('iconDashWallpaper', 1);
       req.onupgradeneeded = function () {
         var db = req.result;
         if (!db.objectStoreNames.contains('wall')) db.createObjectStore('wall');
       };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error); };
+      req.onsuccess = function () {
+        if (settled) { try { req.result.close(); } catch (e) { /* ignore */ } return; }
+        settled = true;
+        clearTimeout(timer);
+        resolve(req.result);
+      };
+      req.onerror = function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(req.error || new Error('IndexedDB 打开失败'));
+      };
     });
   }
 
@@ -814,6 +829,50 @@
         tx.onerror = function () { reject(tx.error); };
       });
     });
+  }
+
+  /* ---------- 图片双通道存储（IDB 优先，localStorage 降级） ---------- */
+
+  function blobToDataURL(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(fr.result); };
+      fr.onerror = function () { reject(fr.error); };
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  function dataURLToBlob(data) {
+    return fetch(data).then(function (r) { return r.blob(); });
+  }
+
+  function storeImage(blob) {
+    return idbPut(IMG_KEY, blob).catch(function () {
+      // IndexedDB 不可用（如直接以 file:// 打开预览）：降级存 localStorage
+      return blobToDataURL(blob).then(function (d) {
+        try { localStorage.setItem(IMG_LS_KEY, d); } catch (e) { throw new Error('存储空间不足'); }
+      });
+    });
+  }
+
+  function loadImageBlob() {
+    function fromLS() {
+      var d = null;
+      try { d = localStorage.getItem(IMG_LS_KEY); } catch (e) { /* ignore */ }
+      return d ? dataURLToBlob(d) : Promise.resolve(null);
+    }
+    return idbGet(IMG_KEY).then(function (blob) {
+      return blob ? blob : fromLS();
+    }).catch(function () {
+      return fromLS();
+    });
+  }
+
+  function clearImageStores() {
+    return idbDel(IMG_KEY).catch(function () { /* ignore */ })
+      .then(function () {
+        try { localStorage.removeItem(IMG_LS_KEY); } catch (e) { /* ignore */ }
+      });
   }
 
   /* ---------- 图片压缩处理 ---------- */
@@ -857,6 +916,16 @@
     applyWallpaper();
   }
 
+  /* 存储暂时读不到壁纸时：只回退显示，不清除用户已保存的选择 */
+  function showBaseBg() {
+    var root = document.documentElement;
+    stopVideo();
+    clearImageSrc();
+    root.removeAttribute('data-wall');
+    applyDimUI();
+    syncUI();
+  }
+
   /* ---------- 视频壁纸 ---------- */
 
   function stopVideo() {
@@ -890,7 +959,7 @@
   function loadVideoWallpaper() {
     if (!wallVideo) { fallbackToOrb(); return; }
     idbGet(VIDEO_KEY).then(function (handle) {
-      if (!handle || typeof handle.getFile !== 'function') { fallbackToOrb(); return; }
+      if (!handle || typeof handle.getFile !== 'function') { showBaseBg(); return; }
       var permCheck = handle.queryPermission
         ? handle.queryPermission({ mode: 'read' })
         : Promise.resolve('granted');
@@ -909,21 +978,21 @@
         return null;
       }).then(function (file) {
         if (file) attachVideoSource(file);
-      }).catch(function () { fallbackToOrb(); });
-    }).catch(function () { fallbackToOrb(); });
+      }).catch(function () { showBaseBg(); });
+    }).catch(function () { showBaseBg(); });
   }
 
   function authorizeAndPlay(handle) {
     if (!handle || typeof handle.requestPermission !== 'function') {
-      fallbackToOrb();
+      showBaseBg();
       return;
     }
     handle.requestPermission({ mode: 'read' }).then(function (perm) {
-      if (perm !== 'granted') { fallbackToOrb(); return; }
+      if (perm !== 'granted') { showBaseBg(); return; }
       return handle.getFile();
     }).then(function (file) {
       if (file) attachVideoSource(file);
-    }).catch(function () { fallbackToOrb(); });
+    }).catch(function () { showBaseBg(); });
   }
 
   function authorizeAndSetVideo(handle) {
@@ -1011,14 +1080,14 @@
     }
     if (state.mode === 'image') {
       root.setAttribute('data-wall', 'image');
-      idbGet(IMG_KEY).then(function (blob) {
-        if (!blob) { fallbackToOrb(); return; }
+      loadImageBlob().then(function (blob) {
+        if (!blob) { showBaseBg(); return; }
         if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
         currentImageUrl = URL.createObjectURL(blob);
         root.style.setProperty('--wall-image-src', 'url("' + currentImageUrl + '")');
         applyDimUI();
         syncUI();
-      }).catch(function () { fallbackToOrb(); });
+      }).catch(function () { showBaseBg(); });
       return;
     }
     fallbackToOrb();
@@ -1126,13 +1195,15 @@
         pickBtn.disabled = false;
         pickBtn.innerHTML = old;
         if (!blob) return;
-        idbPut(IMG_KEY, blob).then(function () {
+        storeImage(blob).then(function () {
           state.mode = 'image';
           state.preset = null;
           saveState();
           applyWallpaper();
           closePanel();
-        }).catch(function () { /* 存储失败则忽略 */ });
+        }).catch(function () {
+          setNote('图片保存失败：浏览器存储空间可能不足。');
+        });
       });
     });
   }
@@ -1155,7 +1226,8 @@
       state.preset = null;
       saveState();
       applyWallpaper();
-      closePanel();
+      // 不自动关闭面板：告知用户此环境无法跨会话记住视频
+      setNote('当前页面无法跨会话记住视频文件（缺少文件授权能力）。本次可播放，刷新后需重新选择。');
     });
   }
 
@@ -1169,7 +1241,10 @@
         applyWallpaper();
         closePanel();
       }
-      Promise.all([idbDel(IMG_KEY), idbDel(VIDEO_KEY)]).then(finish, finish);
+      Promise.all([
+        clearImageStores(),
+        idbDel(VIDEO_KEY).catch(function () { /* ignore */ })
+      ]).then(finish, finish);
     });
   }
 
