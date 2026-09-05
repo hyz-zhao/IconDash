@@ -2,3 +2,7 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+# AI agent workspace metadata
+.agents/
+.claude/
+skills-lock.json

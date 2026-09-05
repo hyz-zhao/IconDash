@@ -7,10 +7,49 @@
   <link rel="stylesheet" href="newtab.css">
 </head>
 <body>
+  <!-- 动态渐变光球背景层 -->
+  <div class="bg" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+    <span class="orb orb-4"></span>
+    <video id="wallVideo" class="wall-video" muted loop playsinline preload="none"></video>
+    <span class="wall-dim" aria-hidden="true"></span>
+  </div>
+
+  <button class="theme-toggle wallpaper-toggle" id="wallpaperToggle" title="壁纸设置">
+    <svg class="icon-wall" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-5-5-8.5 8.5"/></svg>
+  </button>
   <button class="theme-toggle" id="themeToggle" title="切换明暗主题">
     <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
     <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
   </button>
+
+  <!-- 壁纸设置面板 -->
+  <div class="wallpaper-panel hidden" id="wallpaperPanel">
+    <div class="wp-title">壁纸设置</div>
+    <div class="wp-grid" id="wallpaperOptions"></div>
+    <div class="wp-divider"></div>
+    <button class="wp-btn" id="wpPickImage">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      从本机选择图片
+    </button>
+    <button class="wp-btn" id="wpPickVideo">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+      选择本地视频（mp4 / webm）
+    </button>
+    <button class="wp-btn" id="wpClear">恢复默认壁纸</button>
+    <div class="wp-row wp-dim-row">
+      <span class="wp-dim-label">背景压暗</span>
+      <input type="range" id="wpDim" min="0" max="70" value="0" />
+      <span class="wp-dim-val" id="wpDimVal">0%</span>
+    </div>
+    <div class="wp-hint" id="wpHint">图片会压缩保存到浏览器本地；视频通过文件授权直接播放，无需复制大文件，重开新标签页自动恢复。</div>
+  </div>
+
+  <input type="file" id="wallpaperFile" accept="image/*" hidden />
+  <input type="file" id="wallpaperVideoFile" accept="video/mp4,video/webm,video/quicktime,video/x-matroska" hidden />
+
   <div class="container">
     <div class="time-area">
       <div class="greeting" id="greeting">早上好</div>

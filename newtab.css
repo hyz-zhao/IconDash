@@ -1,8 +1,25 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg: #f0ede8;
-  --bg-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, #f8f4ec 0%, #e8e2d4 100%);
+  --bg: #f4f2ee;
+  /* 环境底色：暖白顶部 → 冷灰蓝底部，多图层叠加 */
+  --bg-gradient:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #fcfbf9 0%, #f6f2eb 46%, #e7ecf7 100%);
+  /* 背景光球配色（rgb 三元组 + 独立透明度） */
+  --orb-1: 244, 148, 86;   /* 杏橙 */
+  --orb-2: 148, 176, 255;  /* 淡蓝 */
+  --orb-3: 246, 150, 196;  /* 淡粉 */
+  --orb-4: 250, 200, 130;  /* 暖金 */
+  --orb-a1: 0.42;
+  --orb-a2: 0.5;
+  --orb-a3: 0.38;
+  --orb-a4: 0.45;
+  /* 内置壁纸主题 */
+  --wall-dawn: linear-gradient(165deg, #ffe9de 0%, #fcd6ec 34%, #d5d9fb 68%, #aec6f7 100%);
+  --wall-mist: linear-gradient(170deg, #e8f6f2 0%, #d0eaf2 45%, #b6daf1 100%);
+  --wall-dusk: linear-gradient(160deg, #f2eaff 0%, #dcc8f8 52%, #beabef 100%);
+  --wall-sage: linear-gradient(165deg, #eef8ea 0%, #d7eede 48%, #c4e6d3 100%);
   --surface: #fff;
   --surface-hover: #faf8f5;
   --text: #2c2c38;
@@ -27,8 +44,19 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0f0f1c;
-  --bg-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, #1e1e38 0%, #0a0a18 100%);
+  --bg: #0a0c18;
+  --bg-gradient:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(124, 92, 255, 0.16) 0%, rgba(124, 92, 255, 0) 60%),
+    linear-gradient(180deg, #15173a 0%, #0c0e22 52%, #06070f 100%);
+  /* 背景光球配色 */
+  --orb-1: 128, 96, 255;    /* 紫罗兰 */
+  --orb-2: 62, 150, 255;    /* 电光蓝 */
+  --orb-3: 255, 148, 96;    /* 暖橙（呼应主题色） */
+  --orb-4: 170, 120, 255;   /* 亮紫 */
+  --orb-a1: 0.18;
+  --orb-a2: 0.2;
+  --orb-a3: 0.14;
+  --orb-a4: 0.16;
   --surface: #1a1a30;
   --surface-hover: #222240;
   --text: #e8e4f0;
@@ -60,9 +88,88 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ===== 主题切换按钮 ===== */
+/* ===== 动态渐变光球背景 ===== */
 
-.theme-toggle {
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.orb-1 {
+  top: -34vmax;
+  left: 50%;
+  width: 66vmax;
+  height: 66vmax;
+  margin-left: -33vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--orb-1), var(--orb-a1)) 0%, rgba(var(--orb-1), 0) 68%);
+  animation: drift-1 34s ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  left: -14vmax;
+  bottom: -16vmax;
+  width: 54vmax;
+  height: 54vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--orb-2), var(--orb-a2)) 0%, rgba(var(--orb-2), 0) 70%);
+  animation: drift-2 26s ease-in-out infinite alternate;
+}
+
+.orb-3 {
+  top: -12vmax;
+  right: -12vmax;
+  width: 46vmax;
+  height: 46vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--orb-3), var(--orb-a3)) 0%, rgba(var(--orb-3), 0) 70%);
+  animation: drift-3 30s ease-in-out infinite alternate;
+}
+
+.orb-4 {
+  bottom: -8vmax;
+  right: 12vmax;
+  width: 30vmax;
+  height: 30vmax;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--orb-4), var(--orb-a4)) 0%, rgba(var(--orb-4), 0) 72%);
+  animation: drift-4 22s ease-in-out infinite alternate;
+}
+
+@keyframes drift-1 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(0, 7vmax, 0) scale(1.1); }
+}
+
+@keyframes drift-2 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(5vmax, -5vmax, 0) scale(1.12); }
+}
+
+@keyframes drift-3 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-4vmax, 4vmax, 0) scale(1.05); }
+}
+
+@keyframes drift-4 {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-7vmax, -3vmax, 0) scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg .orb { animation: none; }
+}
+
+/* ===== 主题切换 / 壁纸按钮 ===== */
+
+.theme-toggle, .wallpaper-toggle {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -81,16 +188,211 @@ body {
   box-shadow: var(--shadow);
 }
 
-.theme-toggle:active {
+.wallpaper-toggle { right: 70px; }
+
+.theme-toggle:active, .wallpaper-toggle:active {
   transform: scale(0.9);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .theme-toggle:hover {
+  .theme-toggle:hover, .wallpaper-toggle:hover {
     border-color: var(--accent);
     color: var(--accent);
     transform: scale(1.05);
   }
+}
+
+/* ===== 壁纸设置面板 ===== */
+
+.wallpaper-panel {
+  position: fixed;
+  top: 74px;
+  right: 20px;
+  z-index: 60;
+  width: 302px;
+  max-width: calc(100vw - 40px);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: var(--shadow-lg);
+  animation: menuIn 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.wallpaper-panel::-webkit-scrollbar { width: 5px; }
+.wallpaper-panel::-webkit-scrollbar-track { background: transparent; }
+.wallpaper-panel::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
+.wallpaper-panel::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
+
+.wp-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.wp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.wp-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  transition: transform var(--transition-fast), border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.wp-option:active { transform: scale(0.96); }
+
+@media (hover: hover) and (pointer: fine) {
+  .wp-option:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+  }
+}
+
+.wp-option.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 14px var(--accent-glow);
+}
+
+.wp-swatch {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-size: cover;
+  background-position: center;
+}
+
+.wp-swatch.orb { background: var(--bg-gradient); }
+
+.wp-swatch.dawn  { background: var(--wall-dawn); }
+.wp-swatch.mist  { background: var(--wall-mist); }
+.wp-swatch.dusk  { background: var(--wall-dusk); }
+.wp-swatch.sage  { background: var(--wall-sage); }
+
+.wp-name {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.wp-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+
+.wp-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  margin-bottom: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform var(--transition-fast), background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.wp-btn:active { transform: scale(0.97); }
+
+@media (hover: hover) and (pointer: fine) {
+  .wp-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+
+.wp-btn-secondary { color: var(--text-muted); }
+.wp-btn-secondary:hover { color: var(--text); }
+
+.wp-dim-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.wp-dim-label {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wp-dim-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.wp-dim-val {
+  flex: none;
+  width: 34px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.wp-hint {
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+/* ===== 壁纸应用模式 ===== */
+
+html[data-wall]:not([data-wall="orb"]) .bg .orb { opacity: 0; }
+
+/* 视频壁纸层 */
+.wall-video {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: transparent;
+}
+
+html[data-wall="video"] .wall-video { display: block; }
+
+html[data-wall="dawn"] .bg { background: var(--wall-dawn); }
+html[data-wall="mist"] .bg { background: var(--wall-mist); }
+html[data-wall="dusk"] .bg { background: var(--wall-dusk); }
+html[data-wall="sage"] .bg { background: var(--wall-sage); }
+html[data-wall="image"] .bg { background: var(--wall-image-src, none) center / cover no-repeat; }
+
+.wall-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 24, var(--wall-dim, 0));
 }
 
 [data-theme="dark"] .icon-sun { display: block; }
@@ -101,6 +403,8 @@ body {
 :root .icon-moon { display: block; }
 
 .container {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 900px;
   padding: 80px 24px 48px;

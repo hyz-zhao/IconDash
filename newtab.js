@@ -690,3 +690,501 @@
   }
 
     })();
+
+/* ============================================================
+ * 壁纸设置模块（独立作用域）
+ * 支持：内置壁纸主题 / 本机图片 / 本地视频（File System Access）
+ *       / 背景压暗 / 持久化
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var STORE_KEY = 'iconDash_wallpaper';
+  var IMG_KEY = 'image';
+  var VIDEO_KEY = 'videoHandle';
+  var PRESET_SET = { dawn: 1, mist: 1, dusk: 1, sage: 1 };
+
+  var OPTIONS = [
+    { mode: 'orb',  preset: null,  name: '动态光晕', swatch: 'orb' },
+    { mode: 'grad', preset: 'dawn', name: '晨雾',    swatch: 'dawn' },
+    { mode: 'grad', preset: 'mist', name: '云雾',    swatch: 'mist' },
+    { mode: 'grad', preset: 'dusk', name: '暮紫',    swatch: 'dusk' },
+    { mode: 'grad', preset: 'sage', name: '森语',    swatch: 'sage' }
+  ];
+
+  var panel = document.getElementById('wallpaperPanel');
+  var toggle = document.getElementById('wallpaperToggle');
+  var grid = document.getElementById('wallpaperOptions');
+  var pickBtn = document.getElementById('wpPickImage');
+  var videoPickBtn = document.getElementById('wpPickVideo');
+  var clearBtn = document.getElementById('wpClear');
+  var dimInput = document.getElementById('wpDim');
+  var dimVal = document.getElementById('wpDimVal');
+  var fileInput = document.getElementById('wallpaperFile');
+  var videoInput = document.getElementById('wallpaperVideoFile');
+  var wallVideo = document.getElementById('wallVideo');
+  var hintEl = document.getElementById('wpHint');
+  var themeToggle = document.getElementById('themeToggle');
+
+  var state = loadState();
+  var currentImageUrl = null;
+  var currentVideoUrl = null;
+  var currentVideoFile = null;   // 非 File System Access 时的会话级视频文件
+  var videoRetryArmed = false;
+  var hintTimer = null;
+  var DEFAULT_HINT = hintEl ? hintEl.textContent : '';
+
+  /* ---------- 状态读写 ---------- */
+
+  function loadState() {
+    try {
+      var s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      if (s && s.mode) return { mode: s.mode, preset: s.preset || null, dim: typeof s.dim === 'number' ? s.dim : null };
+    } catch (e) { /* ignore */ }
+    return { mode: 'orb', preset: null, dim: null };
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+
+  function isDark() {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+  }
+
+  /* 自动压暗：未手动拖动滑杆时，深色主题且使用壁纸 → 自动压暗保证可读性 */
+  function autoDim() {
+    if (isDark()) return state.mode === 'orb' ? 0 : 0.38;
+    return state.mode === 'orb' ? 0 : 0.1;
+  }
+
+  function effDim() {
+    return state.dim === null ? autoDim() : state.dim / 100;
+  }
+
+  function applyDimUI() {
+    var d = Math.round(effDim() * 100);
+    document.documentElement.style.setProperty('--wall-dim', (d / 100).toFixed(2));
+    if (dimInput) dimInput.value = d;
+    if (dimVal) dimVal.textContent = d + '%';
+  }
+
+  /* ---------- IndexedDB 存取（用于大图壁纸） ---------- */
+
+  function openDB() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open('iconDashWallpaper', 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('wall')) db.createObjectStore('wall');
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+
+  function idbPut(key, val) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('wall', 'readwrite');
+        tx.objectStore('wall').put(val, key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  function idbGet(key) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('wall', 'readonly');
+        var rq = tx.objectStore('wall').get(key);
+        rq.onsuccess = function () { resolve(rq.result || null); };
+        rq.onerror = function () { reject(rq.error); };
+      });
+    });
+  }
+
+  function idbDel(key) {
+    return openDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('wall', 'readwrite');
+        tx.objectStore('wall').delete(key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  /* ---------- 图片压缩处理 ---------- */
+
+  function processImage(file, done) {
+    if (!file || !/^image\//.test(file.type)) { done(null); return; }
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var MAX_W = 2560, MAX_H = 1600;
+      var ratio = Math.min(1, MAX_W / img.naturalWidth, MAX_H / img.naturalHeight);
+      var w = Math.max(1, Math.round(img.naturalWidth * ratio));
+      var h = Math.max(1, Math.round(img.naturalHeight * ratio));
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0b0d1c';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function (blob) {
+        URL.revokeObjectURL(url);
+        done(blob);
+      }, 'image/jpeg', 0.9);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); done(null); };
+    img.src = url;
+  }
+
+  /* ---------- 应用壁纸 ---------- */
+
+  function clearImageSrc() {
+    if (currentImageUrl) { URL.revokeObjectURL(currentImageUrl); currentImageUrl = null; }
+    document.documentElement.style.removeProperty('--wall-image-src');
+  }
+
+  function fallbackToOrb() {
+    state.mode = 'orb';
+    state.preset = null;
+    saveState();
+    applyWallpaper();
+  }
+
+  /* ---------- 视频壁纸 ---------- */
+
+  function stopVideo() {
+    videoRetryArmed = false;
+    currentVideoFile = null;
+    if (wallVideo) {
+      wallVideo.pause();
+      wallVideo.onerror = null;
+      wallVideo.removeAttribute('src');
+      try { wallVideo.load(); } catch (e) { /* ignore */ }
+    }
+    if (currentVideoUrl) {
+      URL.revokeObjectURL(currentVideoUrl);
+      currentVideoUrl = null;
+    }
+  }
+
+  function attachVideoSource(file) {
+    if (!wallVideo || !file) return;
+    if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+    currentVideoUrl = URL.createObjectURL(file);
+    wallVideo.src = currentVideoUrl;
+    wallVideo.onerror = function () {
+      stopVideo();
+      fallbackToOrb();
+    };
+    var p = wallVideo.play();
+    if (p && p.catch) p.catch(function () { /* 自动播放被拦截时保持静默，首帧仍显示 */ });
+  }
+
+  function loadVideoWallpaper() {
+    if (!wallVideo) { fallbackToOrb(); return; }
+    idbGet(VIDEO_KEY).then(function (handle) {
+      if (!handle || typeof handle.getFile !== 'function') { fallbackToOrb(); return; }
+      var permCheck = handle.queryPermission
+        ? handle.queryPermission({ mode: 'read' })
+        : Promise.resolve('granted');
+      permCheck.then(function (perm) {
+        if (perm === 'granted') {
+          return handle.getFile();
+        }
+        // 未授权（例如权限被清理）：等待用户首次点击时再请求授权
+        videoRetryArmed = true;
+        var once = function () {
+          document.removeEventListener('pointerdown', once);
+          if (!videoRetryArmed) return;
+          authorizeAndPlay(handle);
+        };
+        document.addEventListener('pointerdown', once);
+        return null;
+      }).then(function (file) {
+        if (file) attachVideoSource(file);
+      }).catch(function () { fallbackToOrb(); });
+    }).catch(function () { fallbackToOrb(); });
+  }
+
+  function authorizeAndPlay(handle) {
+    if (!handle || typeof handle.requestPermission !== 'function') {
+      fallbackToOrb();
+      return;
+    }
+    handle.requestPermission({ mode: 'read' }).then(function (perm) {
+      if (perm !== 'granted') { fallbackToOrb(); return; }
+      return handle.getFile();
+    }).then(function (file) {
+      if (file) attachVideoSource(file);
+    }).catch(function () { fallbackToOrb(); });
+  }
+
+  function authorizeAndSetVideo(handle) {
+    var req = handle.queryPermission
+      ? handle.queryPermission({ mode: 'read' })
+      : Promise.resolve('granted');
+    req.then(function (perm) {
+      if (perm !== 'granted') {
+        if (typeof handle.requestPermission !== 'function') throw new Error('无法读取该文件');
+        return handle.requestPermission({ mode: 'read' }).then(function (p) {
+          if (p !== 'granted') throw new Error('未授予读取权限');
+        });
+      }
+      return null;
+    }).then(function () {
+      return idbPut(VIDEO_KEY, handle);
+    }).then(function () {
+      currentVideoFile = null;
+      state.mode = 'video';
+      state.preset = null;
+      saveState();
+      applyWallpaper();
+      closePanel();
+    }).catch(function (e) {
+      setNote('无法使用该视频：' + (e && e.message ? e.message : '未知错误'));
+    });
+  }
+
+  function pickVideo() {
+    if (window.showOpenFilePicker) {
+      window.showOpenFilePicker({
+        types: [{
+          description: '视频壁纸',
+          accept: { 'video/*': ['.mp4', '.webm', '.mov', '.mkv'] }
+        }],
+        excludeAcceptAllOption: false
+      }).then(function (handles) {
+        var h = handles && handles[0];
+        if (!h) return;
+        if (h.kind !== 'file') { setNote('请选择视频文件'); return; }
+        authorizeAndSetVideo(h);
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') return; // 用户取消
+        setNote('选择失败：' + (err && err.message ? err.message : '未知错误'));
+      });
+    } else if (videoInput) {
+      // 降级：普通文件选择，仅本次会话有效
+      videoInput.click();
+    } else {
+      setNote('当前浏览器不支持选择本地视频');
+    }
+  }
+
+  function applyWallpaper() {
+    var root = document.documentElement;
+    if (state.mode === 'video') {
+      var sessionFile = currentVideoFile;
+      stopVideo(); // 若此前正是视频模式，先释放旧资源再重载
+      clearImageSrc();
+      root.setAttribute('data-wall', 'video');
+      applyDimUI();
+      syncUI();
+      if (sessionFile) {
+        currentVideoFile = sessionFile;
+        attachVideoSource(sessionFile);
+        return;
+      }
+      loadVideoWallpaper();
+      return;
+    }
+    stopVideo();
+    if (state.mode === 'orb') {
+      root.removeAttribute('data-wall');
+      clearImageSrc();
+      applyDimUI();
+      syncUI();
+      return;
+    }
+    if (state.mode === 'grad' && PRESET_SET[state.preset]) {
+      clearImageSrc();
+      root.setAttribute('data-wall', state.preset);
+      applyDimUI();
+      syncUI();
+      return;
+    }
+    if (state.mode === 'image') {
+      root.setAttribute('data-wall', 'image');
+      idbGet(IMG_KEY).then(function (blob) {
+        if (!blob) { fallbackToOrb(); return; }
+        if (currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+        currentImageUrl = URL.createObjectURL(blob);
+        root.style.setProperty('--wall-image-src', 'url("' + currentImageUrl + '")');
+        applyDimUI();
+        syncUI();
+      }).catch(function () { fallbackToOrb(); });
+      return;
+    }
+    fallbackToOrb();
+  }
+
+  function setMode(mode, preset) {
+    state.mode = mode;
+    state.preset = preset || null;
+    saveState();
+    applyWallpaper();
+  }
+
+  /* ---------- 面板 UI ---------- */
+
+  function renderOptions() {
+    if (!grid) return;
+    grid.innerHTML = '';
+    OPTIONS.forEach(function (o) {
+      var el = document.createElement('div');
+      el.className = 'wp-option';
+      el.dataset.mode = o.mode;
+      el.dataset.preset = o.preset || '';
+      var sw = document.createElement('div');
+      sw.className = 'wp-swatch ' + o.swatch;
+      var nm = document.createElement('div');
+      nm.className = 'wp-name';
+      nm.textContent = o.name;
+      el.appendChild(sw);
+      el.appendChild(nm);
+      el.addEventListener('click', function () {
+        setMode(o.mode, o.preset);
+        closePanel();
+      });
+      grid.appendChild(el);
+    });
+  }
+
+  function syncUI() {
+    if (!grid) return;
+    var kids = grid.children;
+    for (var i = 0; i < kids.length; i++) {
+      var o = OPTIONS[i];
+      var active = o.mode === state.mode && o.preset === state.preset;
+      kids[i].classList.toggle('active', active);
+    }
+  }
+
+  function setNote(msg, ms) {
+    if (!hintEl) return;
+    hintEl.textContent = msg;
+    if (hintTimer) clearTimeout(hintTimer);
+    if (ms) {
+      hintTimer = setTimeout(function () { hintEl.textContent = DEFAULT_HINT; }, ms);
+    }
+  }
+
+  function openPanel() {
+    if (!panel) return;
+    if (hintEl) hintEl.textContent = DEFAULT_HINT;
+    panel.classList.remove('hidden');
+    applyDimUI();
+  }
+
+  function closePanel() {
+    if (panel) panel.classList.add('hidden');
+  }
+
+  if (toggle && panel) {
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (panel.classList.contains('hidden')) openPanel();
+      else closePanel();
+    });
+    document.addEventListener('click', function (e) {
+      if (!panel.classList.contains('hidden') &&
+          !panel.contains(e.target) &&
+          !toggle.contains(e.target)) {
+        closePanel();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closePanel();
+    });
+  }
+
+  /* 明暗切换后：自动压暗值随主题重算（未手动设置时） */
+  if (themeToggle) {
+    themeToggle.addEventListener('click', function () {
+      if (state.dim === null) applyDimUI();
+    });
+  }
+
+  /* ---------- 选择本机图片 ---------- */
+
+  if (pickBtn && fileInput) {
+    pickBtn.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      var old = pickBtn.innerHTML;
+      pickBtn.disabled = true;
+      pickBtn.textContent = '正在处理图片…';
+      processImage(file, function (blob) {
+        pickBtn.disabled = false;
+        pickBtn.innerHTML = old;
+        if (!blob) return;
+        idbPut(IMG_KEY, blob).then(function () {
+          state.mode = 'image';
+          state.preset = null;
+          saveState();
+          applyWallpaper();
+          closePanel();
+        }).catch(function () { /* 存储失败则忽略 */ });
+      });
+    });
+  }
+
+  /* ---------- 选择本机视频 ---------- */
+
+  if (videoPickBtn) {
+    videoPickBtn.addEventListener('click', pickVideo);
+  }
+
+  if (videoInput) {
+    videoInput.addEventListener('change', function () {
+      var file = videoInput.files && videoInput.files[0];
+      videoInput.value = '';
+      if (!file) return;
+      if (!/^video\//.test(file.type)) { setNote('请选择视频文件（mp4 / webm）'); return; }
+      // 降级路径：无 File System Access API 时仅本次会话有效
+      currentVideoFile = file;
+      state.mode = 'video';
+      state.preset = null;
+      saveState();
+      applyWallpaper();
+      closePanel();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      function finish() {
+        state.mode = 'orb';
+        state.preset = null;
+        state.dim = null;
+        saveState();
+        applyWallpaper();
+        closePanel();
+      }
+      Promise.all([idbDel(IMG_KEY), idbDel(VIDEO_KEY)]).then(finish, finish);
+    });
+  }
+
+  if (dimInput) {
+    dimInput.addEventListener('input', function () {
+      state.dim = parseInt(dimInput.value, 10);
+      if (dimInput.value === '0') state.dim = 0;
+      saveState();
+      applyDimUI();
+    });
+  }
+
+  /* ---------- 初始化 ---------- */
+
+  renderOptions();
+  syncUI();
+  applyWallpaper();
+})();
